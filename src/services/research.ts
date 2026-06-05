@@ -7,6 +7,7 @@ import { formatWebSearchResults, searchStarCitizenWeb } from "./web-search.js";
 import { formatWikeloContracts, getSimilarWikeloContracts, getWikeloContractInfo, getWikeloPolarisContractInfo } from "./wikelo.js";
 import { findLocation, findShip } from "./wiki.js";
 import { fieldValue, numberValue, relativeTime } from "../utils/format.js";
+import { buildPersonalityContext, randomUnknownJoke } from "./personality.js";
 
 const knownMaterials = [
   "quantainium",
@@ -87,6 +88,8 @@ function focusedWebSearchQuery(message: string) {
 export async function buildResearchContext(message: string) {
   const lower = message.toLowerCase();
   const parts: string[] = [];
+  const personalityContext = buildPersonalityContext(message);
+  if (personalityContext) parts.push(personalityContext);
 
   if (/\bwikelo\b/.test(lower) && /\bpolaris\b/.test(lower)) {
     const contract = getWikeloPolarisContractInfo();
@@ -228,6 +231,10 @@ export async function buildResearchContext(message: string) {
       parts.push(`Public web search failed: ${error instanceof Error ? error.message : "unknown error"}`);
     }
   }
+
+  parts.push(
+    `Fallback personality rule: If you still cannot answer after checking available data, say that you do not have confirmed intel, then add this short space joke: "${randomUnknownJoke(message)}"`
+  );
 
   return parts.join("\n\n").slice(0, 5500);
 }
