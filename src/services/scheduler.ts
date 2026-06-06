@@ -1,6 +1,7 @@
 import type { Client } from "discord.js";
 import { getSetting } from "../db.js";
 import { getStatusInfo } from "./rsi.js";
+import { getPatchInfo } from "./rsi.js";
 import { loadAppConfig } from "../utils/app-config.js";
 import { baseEmbed, trimText } from "../utils/format.js";
 import { getLatestNews, getLatestPatchNotes } from "./news.js";
@@ -25,6 +26,10 @@ async function getTextChannel(client: Client, settingKey: string) {
   if (!channelId) return undefined;
   const channel = await client.channels.fetch(channelId).catch(() => null);
   return channel?.isTextBased() && "send" in channel ? channel : undefined;
+}
+
+async function getTextChannelWithNameFallback(client: Client, settingKey: string, channelName: string) {
+  return (await getTextChannel(client, settingKey)) ?? (await getTextChannelByName(client, channelName));
 }
 
 async function getTextChannelByName(client: Client, channelName: string) {
@@ -98,23 +103,35 @@ export function startScheduledPosts(client: Client) {
   }
 
   const postPatchNotes = async () => {
-    const channel = await getTextChannel(client, "patchNotesChannelId");
+    const channel = await getTextChannelWithNameFallback(client, "patchNotesChannelId", "drifterai-patch-notes");
     if (!channel) return;
 
     try {
       const [latest] = await getLatestPatchNotes(1);
-      if (!latest) return;
+      const version = await getPatchInfo().catch(() => undefined);
+      if (!latest && !version) return;
 
-      const lastPosted = getSetting("lastPatchNotesLink")?.value;
-      if (lastPosted === latest.link) return;
+      const patchSignature = JSON.stringify({
+        link: latest?.link,
+        live: version?.live,
+        ptu: version?.ptu
+      });
+      const lastPosted = getSetting("lastPatchSignature")?.value;
+      if (lastPosted === patchSignature) return;
 
-      const embed = baseEmbed("Latest Patch Notes")
-        .setTitle(latest.title)
-        .setURL(latest.link)
-        .setDescription(trimText(latest.description, 600));
+      const embed = baseEmbed("Star Citizen Patch Update")
+        .setTitle(latest?.title ?? "Star Citizen Version Update")
+        .setDescription(trimText(latest?.description ?? version?.summary ?? "New version information detected. Verify details on official sources.", 650))
+        .addFields(
+          { name: "LIVE", value: version?.live ?? "Unknown", inline: true },
+          { name: "PTU", value: version?.ptu ?? "Unknown", inline: true }
+        );
+
+      if (latest?.link) embed.setURL(latest.link);
 
       await channel.send({ embeds: [embed] });
-      setSetting("lastPatchNotesLink", latest.link);
+      setSetting("patchNotesChannelId", channel.id);
+      setSetting("lastPatchSignature", patchSignature);
     } catch (error) {
       console.error("Auto patch notes post failed:", error);
     }
@@ -122,7 +139,7 @@ export function startScheduledPosts(client: Client) {
 
   if (appConfig.autoNews) {
     setTimeout(postPatchNotes, 60 * 1000);
-    setInterval(postPatchNotes, 24 * 60 * 60 * 1000);
+    setInterval(postPatchNotes, 60 * 60 * 1000);
   }
 
   if (appConfig.autoTradeTips) {

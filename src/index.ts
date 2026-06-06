@@ -76,7 +76,7 @@ client.on(Events.MessageCreate, async (message) => {
 
   const aiChatChannelId = getSetting("aiChatChannelId")?.value;
   const calledByMention = client.user ? message.mentions.users.has(client.user.id) : false;
-  const calledByName = /\bdrifter\s*ai\b/i.test(message.content);
+  const calledByName = /\bdrifter\s*ai\b|\bdai\b/i.test(message.content);
   const isAiChat = Boolean(aiChatChannelId && message.channelId === aiChatChannelId);
   if (!isAiChat && !calledByMention && !calledByName) return;
 
@@ -89,7 +89,7 @@ client.on(Events.MessageCreate, async (message) => {
     await message.channel.sendTyping();
     const cleanedMessage = message.content
       .replace(client.user ? new RegExp(`<@!?${client.user.id}>`, "g") : /$^/, "")
-      .replace(/\bdrifter\s*ai\b[:,]?\s*/i, "")
+      .replace(/\b(?:drifter\s*ai|dai)\b[:,]?\s*/i, "")
       .trim();
     if (/\b(exec|executive)\s+hang(ar|er)s?\b|\bhang(ar|er)\s+(status|timer|open|closed)\b/i.test(cleanedMessage || message.content)) {
       const hangar = await getExecutiveHangarStatus();

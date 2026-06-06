@@ -6,6 +6,7 @@ import type { BotCommand } from "./types.js";
 
 const settingChoices = [
   { name: "News Channel", value: "newsChannelId" },
+  { name: "Patch Notes Channel", value: "patchNotesChannelId" },
   { name: "Status Channel", value: "statusChannelId" },
   { name: "Contract Channel", value: "contractChannelId" },
   { name: "Verified Role", value: "verifiedRoleId" }
@@ -20,6 +21,11 @@ export const adminCommand: BotCommand = {
       subcommand
         .setName("set_news_channel")
         .setDescription("Set this channel as the news channel.")
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName("set_patch_channel")
+        .setDescription("Set this channel as the patch notes channel.")
     )
     .addSubcommand((subcommand) =>
       subcommand
@@ -51,6 +57,12 @@ export const adminCommand: BotCommand = {
     if (subcommand === "set_news_channel") {
       setSetting("newsChannelId", interaction.channelId);
       await interaction.reply({ content: "News channel set.", ephemeral: true });
+      return;
+    }
+
+    if (subcommand === "set_patch_channel") {
+      setSetting("patchNotesChannelId", interaction.channelId);
+      await interaction.reply({ content: "Patch notes channel set.", ephemeral: true });
       return;
     }
 
