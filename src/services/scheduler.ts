@@ -7,6 +7,7 @@ import { baseEmbed, trimText } from "../utils/format.js";
 import { getLatestNews, getLatestPatchNotes } from "./news.js";
 import { setSetting } from "../db.js";
 import { generateDailyTip } from "./ai.js";
+import { postBotReleaseNotesIfNeeded } from "./bot-release-notes.js";
 
 const aiTipChannels: Record<string, string> = {
   "ship-talk": "Ship discussion, fleet planning, what to buy, what to bring to operations, and ship questions.",
@@ -46,6 +47,12 @@ function shuffled<T>(items: T[]) {
 
 export function startScheduledPosts(client: Client) {
   const appConfig = loadAppConfig();
+
+  setTimeout(() => {
+    postBotReleaseNotesIfNeeded(client).catch((error) => {
+      console.error("Bot release notes post failed:", error);
+    });
+  }, 20 * 1000);
 
   if (appConfig.autoStatus) {
     const postStatus = async () => {
