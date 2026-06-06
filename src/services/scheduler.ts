@@ -35,6 +35,10 @@ async function getTextChannelByName(client: Client, channelName: string) {
   return undefined;
 }
 
+function shuffled<T>(items: T[]) {
+  return [...items].sort(() => Math.random() - 0.5);
+}
+
 export function startScheduledPosts(client: Client) {
   const appConfig = loadAppConfig();
 
@@ -62,7 +66,7 @@ export function startScheduledPosts(client: Client) {
     };
 
     setTimeout(postStatus, 45 * 1000);
-    setInterval(postStatus, 10 * 60 * 1000);
+    setInterval(postStatus, 60 * 60 * 1000);
   }
 
   if (appConfig.autoNews) {
@@ -129,23 +133,22 @@ export function startScheduledPosts(client: Client) {
   if (appConfig.autoAiTips) {
     const postAiTips = async () => {
       const day = new Date().toISOString().slice(0, 10);
+      const dailySettingKey = `aiTipPosted:${day}`;
+      if (getSetting(dailySettingKey)?.value) return;
 
-      for (const [channelName, purpose] of Object.entries(aiTipChannels)) {
+      for (const [channelName, purpose] of shuffled(Object.entries(aiTipChannels))) {
         const channel = await getTextChannelByName(client, channelName);
         if (!channel) continue;
-
-        const settingKey = `aiTipPosted:${channel.id}:${day}`;
-        if (getSetting(settingKey)?.value === "true") continue;
 
         try {
           const tip = await generateDailyTip(channelName, purpose);
           await channel.send({
             embeds: [baseEmbed(`Daily Drifters Tip: #${channelName}`).setDescription(tip)]
           });
-          setSetting(settingKey, "true");
+          setSetting(dailySettingKey, channel.id);
+          return;
         } catch (error) {
           console.error(`AI tip failed for #${channelName}:`, error);
-          break;
         }
       }
     };
