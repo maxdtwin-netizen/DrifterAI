@@ -244,11 +244,15 @@ export function aiProviderLabel() {
 export function aiEnvDebugLabel() {
   const geminiKeys = ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GEMINI_API_KEY"];
   const presentGeminiNames = geminiKeys.filter((name) => Boolean(process.env[name]?.trim()));
+  const nearbyEnvNames = Object.keys(process.env)
+    .filter((name) => /gemini|google/i.test(name))
+    .sort();
 
   return [
     `Gemini env present: ${presentGeminiNames.length ? presentGeminiNames.join(", ") : "no"}`,
     `Gemini key loaded: ${config.geminiApiKey ? "yes" : "no"}`,
     `Gemini key length: ${config.geminiApiKey.length}`,
-    `Gemini model: ${config.geminiModel}`
+    `Gemini model: ${config.geminiModel}`,
+    `Gemini-like env names: ${nearbyEnvNames.length ? nearbyEnvNames.join(", ") : "none"}`
   ].join(" | ");
 }
