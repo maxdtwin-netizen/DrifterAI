@@ -1,19 +1,27 @@
 import "dotenv/config";
 
+function envValue(...names: string[]) {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return "";
+}
+
 export const config = {
-  discordToken: process.env.DISCORD_TOKEN ?? "",
-  discordClientId: process.env.DISCORD_CLIENT_ID ?? "",
-  discordGuildId: process.env.DISCORD_GUILD_ID ?? "",
+  discordToken: envValue("DISCORD_TOKEN"),
+  discordClientId: envValue("DISCORD_CLIENT_ID"),
+  discordGuildId: envValue("DISCORD_GUILD_ID"),
   // Optional. Add this in .env if UEX requires a key for your chosen endpoints.
-  uexApiKey: process.env.UEX_API_KEY ?? "",
+  uexApiKey: envValue("UEX_API_KEY"),
   // Optional. Needed for most StarCitizen-API public RSI endpoints.
-  starCitizenApiKey: process.env.STAR_CITIZEN_API_KEY ?? "",
+  starCitizenApiKey: envValue("STAR_CITIZEN_API_KEY"),
   // Optional. Needed for AI-generated daily channel tips through Groq.
-  groqApiKey: process.env.GROQ_API_KEY ?? "",
-  groqModel: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+  groqApiKey: envValue("GROQ_API_KEY"),
+  groqModel: envValue("GROQ_MODEL") || "llama-3.3-70b-versatile",
   // Optional. If set, DrifterAI uses Gemini with Google Search grounding for chat answers.
-  geminiApiKey: process.env.GEMINI_API_KEY ?? "",
-  geminiModel: process.env.GEMINI_MODEL ?? "gemini-3.5-flash",
+  geminiApiKey: envValue("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GEMINI_API_KEY"),
+  geminiModel: envValue("GEMINI_MODEL") || "gemini-3.5-flash",
   // Optional calibration point for the executive hangar cycle.
   // This should be a UTC time when the cycle resets to the start of red phase.
   execHangarCycleResetUtc: process.env.EXEC_HANGAR_CYCLE_RESET_UTC ?? "2026-06-05T16:50:48Z",

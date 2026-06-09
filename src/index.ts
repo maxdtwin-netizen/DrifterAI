@@ -6,7 +6,7 @@ import { errorMessage } from "./utils/errors.js";
 import { welcomeNewMember } from "./events/welcome.js";
 import { handleRoleButton } from "./utils/roles.js";
 import { startScheduledPosts } from "./services/scheduler.js";
-import { aiProviderLabel, generateOrgAiReply } from "./services/ai.js";
+import { aiEnvDebugLabel, aiProviderLabel, generateOrgAiReply } from "./services/ai.js";
 import { buildResearchContext } from "./services/research.js";
 import { getExecutiveHangarStatus } from "./services/executive-hangar.js";
 
@@ -19,6 +19,7 @@ const client = new Client({
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`Ready as ${readyClient.user.tag}. Contracts are open.`);
   console.log(`AI chat provider: ${aiProviderLabel()}`);
+  console.log(aiEnvDebugLabel());
   startScheduledPosts(client);
 });
 

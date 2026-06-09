@@ -240,3 +240,15 @@ export function aiProviderLabel() {
   if (config.groqApiKey) return `Groq text only (${config.groqModel})`;
   return "No AI provider configured";
 }
+
+export function aiEnvDebugLabel() {
+  const geminiKeys = ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GEMINI_API_KEY"];
+  const presentGeminiNames = geminiKeys.filter((name) => Boolean(process.env[name]?.trim()));
+
+  return [
+    `Gemini env present: ${presentGeminiNames.length ? presentGeminiNames.join(", ") : "no"}`,
+    `Gemini key loaded: ${config.geminiApiKey ? "yes" : "no"}`,
+    `Gemini key length: ${config.geminiApiKey.length}`,
+    `Gemini model: ${config.geminiModel}`
+  ].join(" | ");
+}
