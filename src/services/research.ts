@@ -4,7 +4,6 @@ import { getMineableLocations } from "./mining-locations.js";
 import { getPatchInfo, getStatusInfo } from "./rsi.js";
 import { getCommodityQuote, getMiningInfo, uexFormat } from "./uex.js";
 import { formatWebSearchResults, searchStarCitizenWeb } from "./web-search.js";
-import { formatWikeloContracts, getSimilarWikeloContracts, getWikeloContractInfo, getWikeloPolarisContractInfo } from "./wikelo.js";
 import { findLocation, findShip } from "./wiki.js";
 import { fieldValue, numberValue, relativeTime } from "../utils/format.js";
 import { buildPersonalityContext, randomUnknownJoke } from "./personality.js";
@@ -100,48 +99,10 @@ export async function buildResearchContext(message: string) {
   const personalityContext = buildPersonalityContext(message);
   if (personalityContext) parts.push(personalityContext);
 
-  if (/\bwikelo\b/.test(lower) && /\bpolaris\b/.test(lower)) {
-    const contract = getWikeloPolarisContractInfo();
+  if (/\bwikelo\b/.test(lower)) {
     parts.push(
-      [
-        `Verified Wikelo contract data for ${contract.title}:`,
-        `Mission name: ${contract.mission}`,
-        `Known Wikelo Emporium locations: ${contract.locations.join(", ")}`,
-        "Required items:",
-        ...contract.requirements.map((item) => `- ${item}`),
-        "Advice:",
-        ...contract.advice.map((item) => `- ${item}`),
-        `Sources: ${contract.sources.join(", ")}`,
-        "Answer directly from this contract data. Do not describe this as a normal aUEC ship purchase."
-      ].join("\n")
+      "Wikelo routing rule: use public web search results only for this Wikelo question. Do not use any local Wikelo recipes or fallback data because Wikelo requirements can change by patch."
     );
-    hasPrimarySourceData = true;
-  }
-
-  if (/\bwikelo\b/.test(lower) && !/\bpolaris\b/.test(lower)) {
-    try {
-      const contracts = await getWikeloContractInfo(message);
-      if (contracts.length) {
-        parts.push(
-          `Verified Wikelo contract data matching this question:\n${formatWikeloContracts(contracts)}\nAnswer directly from this contract data. Do not describe Wikelo rewards as normal aUEC purchases. If there are multiple ATLS GEO variants, list the variants and ask which one they want.`
-        );
-        hasPrimarySourceData = true;
-      } else {
-        const similarContracts = getSimilarWikeloContracts(message);
-        parts.push(
-          [
-            "No exact matching Wikelo contract was found in the live/local contract index.",
-            "For Wikelo questions, do not guess a normal aUEC purchase path unless a public source says it.",
-            similarContracts.length
-              ? `Closest confirmed Wikelo recipes for planning/comparison:\n${formatWikeloContracts(similarContracts)}`
-              : "Use web results if available, and if they do not confirm the reward, say it is not confirmed.",
-            "If the user's exact requested ship is not in the closest confirmed list, say that clearly, then offer the closest known pattern."
-          ].join("\n")
-        );
-      }
-    } catch (error) {
-      parts.push(`Wikelo contract lookup failed: ${error instanceof Error ? error.message : "unknown error"}`);
-    }
   }
 
   if (/\b(exec|executive)\s+hang(ar|er)s?\b|\bhang(ar|er)\s+(status|timer|open|closed)\b/.test(lower)) {

@@ -21,6 +21,7 @@ const orgAiSystemPrompt =
   + " If provided research context includes public web results, use them to give the best practical answer first, then include 1-3 relevant source links. Do not repeat the same link twice."
   + " For buy-location questions, prioritize shop/item-finder sources. For commodity/trade questions, prioritize UEX or SC Trade Tools. For loadout questions, summarize the likely best-fit approach and cite Erkul, Hardpoint, or community sources when present. For Wikelo questions, prioritize Wikelo trackers and Star Citizen Wiki."
   + " If a Wikelo question includes both local contract data and public web results, prefer the public web results because Wikelo contracts can change by patch."
+  + " If the context says Wikelo routing rule, do not mention local fallback data or conflicts; answer only from the web search results and cite the best sources."
   + " If sources disagree or only show a similar answer, clearly label it as similar or unconfirmed, but still give the useful closest-known information."
   + " If no source data is available for a specific factual question, say you do not have a confirmed source instead of guessing.";
 
