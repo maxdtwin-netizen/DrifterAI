@@ -133,9 +133,14 @@ export function startScheduledPosts(client: Client) {
       if (!channel) return;
 
       try {
-        const status = await getStatusInfo();
+          const status = await getStatusInfo();
           const statusSignature = status.status;
           const lastStatusSignature = getSetting("lastStatusSignature")?.value;
+          if (!lastStatusSignature) {
+            setSetting("lastStatusSignature", statusSignature);
+            console.log(`Seeded SC platform status without posting: ${statusSignature}`);
+            return;
+          }
           if (lastStatusSignature === statusSignature) return;
           const platformLabel = platformStatusLabel(status.status);
 
@@ -167,8 +172,12 @@ export function startScheduledPosts(client: Client) {
         const [latest] = await getLatestPatchNotes(1);
         if (!latest) return;
 
-        const lastPosted = getSetting("lastScPatchNotesLink")?.value;
-        if (lastPosted === latest.link) return;
+        const patchSignature = `${latest.title}|${latest.link}`;
+        const lastPosted = getSetting("lastScPatchNotesSignature")?.value;
+        if (lastPosted === patchSignature) {
+          console.log("SC patch notes already posted.");
+          return;
+        }
 
         const embed = baseEmbed("Star Citizen Patch Notes")
           .setTitle(latest.title)
@@ -176,7 +185,7 @@ export function startScheduledPosts(client: Client) {
           .setDescription(trimText(latest.description ?? "New Star Citizen patch notes found.", 700));
 
         await channel.send({ embeds: [embed] });
-        setSetting("lastScPatchNotesLink", latest.link);
+        setSetting("lastScPatchNotesSignature", patchSignature);
       } catch (error) {
         console.error("Auto SC patch notes post failed:", error);
       }
@@ -223,7 +232,10 @@ export function startScheduledPosts(client: Client) {
     const postWebIntel = async () => {
       const day = new Date().toISOString().slice(0, 10);
       const dailySettingKey = `webIntelPosted:${day}`;
-      if (getSetting(dailySettingKey)?.value) return;
+      if (getSetting(dailySettingKey)?.value) {
+        console.log("Daily web intel already posted today.");
+        return;
+      }
 
       for (const [channelName, intel] of shuffled(Object.entries(webIntelChannels))) {
         const channel = await getTextChannelByName(client, channelName);
@@ -235,7 +247,10 @@ export function startScheduledPosts(client: Client) {
             .filter((result) => isRecentEnough(result, 60))
             .filter((result) => !getSetting(settingKeyForUrl("webIntelLink", result.url))?.value);
           const sources = unusedResults.slice(0, 3);
-          if (!sources.length) continue;
+          if (!sources.length) {
+            console.log(`Daily web intel skipped #${channelName}: no fresh unused sources found.`);
+            continue;
+          }
 
           const post = await generateWebIntelPost(channelName, intel.purpose, sources);
           await channel.send({

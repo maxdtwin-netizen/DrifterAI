@@ -153,7 +153,7 @@ function parseDuckDuckGoResults(html: string) {
 function recentQuery(query: string, options: SearchOptions = {}) {
   if (!options.recentDays) return query;
   const cutoff = new Date(Date.now() - options.recentDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  return `${query} after:${cutoff}`;
+  return `${query} after:${cutoff} last ${options.recentDays} days`;
 }
 
 async function searchBrave(query: string, options: SearchOptions = {}) {
@@ -200,7 +200,7 @@ async function searchTavily(query: string, options: SearchOptions = {}) {
       query: `Star Citizen ${recentQuery(query, options)}`,
       search_depth: "basic",
       max_results: 7,
-      topic: options.recentDays ? "news" : "general",
+      topic: "general",
       days: options.recentDays,
       include_answer: true,
       include_raw_content: false

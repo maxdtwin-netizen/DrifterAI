@@ -16,13 +16,7 @@ async function getTextChannelByName(client: Client, channelName: string) {
   return undefined;
 }
 
-async function getPatchNotesChannel(client: Client) {
-  const channelId = getSetting("patchNotesChannelId")?.value;
-  if (channelId) {
-    const channel = await client.channels.fetch(channelId).catch(() => null);
-    if (channel?.isTextBased() && "send" in channel) return channel;
-  }
-
+async function getBotPatchNotesChannel(client: Client) {
   return getTextChannelByName(client, "drifterai-patch-notes");
 }
 
@@ -56,7 +50,7 @@ export async function postBotReleaseNotesIfNeeded(client: Client) {
   const notesPath = releaseNotesPath(version);
   if (!existsSync(notesPath)) return;
 
-  const channel = await getPatchNotesChannel(client);
+  const channel = await getBotPatchNotesChannel(client);
   if (!channel) return;
 
   const markdown = readFileSync(notesPath, "utf8");
@@ -68,6 +62,5 @@ export async function postBotReleaseNotesIfNeeded(client: Client) {
     embeds: [embed]
   });
 
-  setSetting("patchNotesChannelId", channel.id);
   setSetting("lastBotReleaseNotesVersion", version);
 }
