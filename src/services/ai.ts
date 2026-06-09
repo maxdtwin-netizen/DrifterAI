@@ -97,7 +97,7 @@ export async function generateWebIntelPost(channelName: string, channelPurpose: 
         {
           role: "system",
           content:
-            "You write one short Discord intel post for a Star Citizen organization named Drifters. Use only the provided web sources. Do not invent facts, prices, routes, patch notes, or live status. Keep it practical and concise. Include the best source link once."
+            "You write one short Discord intel post for a Star Citizen organization named Drifters. Use only the provided web sources. Treat the sources as recent within the last 60 days unless the source text clearly says otherwise. Do not invent facts, prices, routes, patch notes, or live status. Keep it practical and concise. Include the best source link once."
         },
         {
           role: "user",

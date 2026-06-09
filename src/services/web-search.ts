@@ -7,6 +7,11 @@ export type WebSearchResult = {
   url: string;
   snippet: string;
   source?: "brave" | "tavily" | "duckduckgo";
+  publishedAt?: string;
+};
+
+type SearchOptions = {
+  recentDays?: number;
 };
 
 type BraveSearchResponse = {
@@ -15,6 +20,7 @@ type BraveSearchResponse = {
       title?: string;
       url?: string;
       description?: string;
+      page_age?: string;
     }>;
   };
 };
@@ -25,6 +31,7 @@ type TavilySearchResponse = {
     title?: string;
     url?: string;
     content?: string;
+    published_date?: string;
   }>;
 };
 
@@ -143,14 +150,21 @@ function parseDuckDuckGoResults(html: string) {
   return results.slice(0, 5);
 }
 
-async function searchBrave(query: string) {
+function recentQuery(query: string, options: SearchOptions = {}) {
+  if (!options.recentDays) return query;
+  const cutoff = new Date(Date.now() - options.recentDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return `${query} after:${cutoff}`;
+}
+
+async function searchBrave(query: string, options: SearchOptions = {}) {
   if (!config.braveSearchApiKey) return [];
 
   const url = new URL("https://api.search.brave.com/res/v1/web/search");
-  url.searchParams.set("q", `Star Citizen ${query}`);
+  url.searchParams.set("q", `Star Citizen ${recentQuery(query, options)}`);
   url.searchParams.set("count", "7");
   url.searchParams.set("country", "us");
   url.searchParams.set("search_lang", "en");
+  if (options.recentDays) url.searchParams.set("freshness", "pm");
 
   const data = await fetchJson<BraveSearchResponse>(url, {
     headers: {
@@ -165,12 +179,13 @@ async function searchBrave(query: string) {
       title: stripTags(result.title ?? "Web result").slice(0, 120),
       url: result.url ?? "",
       snippet: stripTags(result.description ?? "").slice(0, 360),
-      source: "brave" as const
+      source: "brave" as const,
+      publishedAt: result.page_age
     }))
     .filter((result) => result.url);
 }
 
-async function searchTavily(query: string) {
+async function searchTavily(query: string, options: SearchOptions = {}) {
   if (!config.tavilyApiKey) return [];
 
   const data = await fetchJson<TavilySearchResponse>("https://api.tavily.com/search", {
@@ -182,9 +197,11 @@ async function searchTavily(query: string) {
     method: "POST",
     body: JSON.stringify({
       api_key: config.tavilyApiKey,
-      query: `Star Citizen ${query}`,
+      query: `Star Citizen ${recentQuery(query, options)}`,
       search_depth: "basic",
       max_results: 7,
+      topic: options.recentDays ? "news" : "general",
+      days: options.recentDays,
       include_answer: true,
       include_raw_content: false
     })
@@ -194,7 +211,8 @@ async function searchTavily(query: string) {
     title: result.title ?? "Web result",
     url: result.url ?? "",
     snippet: (result.content ?? "").slice(0, 360),
-    source: "tavily" as const
+    source: "tavily" as const,
+    publishedAt: result.published_date
   })).filter((result) => result.url);
 
   if (data.answer && results[0]) {
@@ -204,12 +222,12 @@ async function searchTavily(query: string) {
   return results;
 }
 
-async function searchDuckDuckGo(query: string) {
+async function searchDuckDuckGo(query: string, options: SearchOptions = {}) {
   const allResults: WebSearchResult[] = [];
 
   for (const searchQuery of intentQueries(query)) {
     const url = new URL("https://duckduckgo.com/html/");
-    url.searchParams.set("q", `Star Citizen ${searchQuery} ${sourceFilter}`);
+    url.searchParams.set("q", `Star Citizen ${recentQuery(searchQuery, options)} ${sourceFilter}`);
 
     const html = await fetchText(url, {
       headers: {
@@ -267,24 +285,26 @@ function intentQueries(query: string) {
     .slice(0, 3);
 }
 
-export async function searchStarCitizenWeb(query: string) {
+export async function searchStarCitizenWeb(query: string, options: SearchOptions = {}) {
   const trimmed = query.replace(/\s+/g, " ").trim().slice(0, 180);
   if (!trimmed) return [];
 
-  return cache.remember(`web-search:${trimmed.toLowerCase()}`, ttl.hours(1), async () => {
+  const cacheKey = `web-search:${trimmed.toLowerCase()}:${options.recentDays ?? "any"}`;
+
+  return cache.remember(cacheKey, ttl.hours(1), async () => {
     const provider = config.webSearchProvider.toLowerCase();
 
     if ((provider === "brave" || provider === "auto") && config.braveSearchApiKey) {
-      const results = await searchBrave(trimmed);
+      const results = await searchBrave(trimmed, options);
       if (results.length) return uniqueResults(results).slice(0, 7);
     }
 
     if ((provider === "tavily" || provider === "auto") && config.tavilyApiKey) {
-      const results = await searchTavily(trimmed);
+      const results = await searchTavily(trimmed, options);
       if (results.length) return uniqueResults(results).slice(0, 7);
     }
 
-    return searchDuckDuckGo(trimmed);
+    return searchDuckDuckGo(trimmed, options);
   });
 }
 
@@ -293,6 +313,6 @@ export function formatWebSearchResults(results: WebSearchResult[]) {
 
   return [
     "Public web search results:",
-    ...results.map((result, index) => `${index + 1}. ${result.title}${result.source ? ` (${result.source})` : ""}\n${result.snippet || "No snippet available."}\nSource: ${result.url}`)
+    ...results.map((result, index) => `${index + 1}. ${result.title}${result.source ? ` (${result.source})` : ""}${result.publishedAt ? `\nPublished: ${result.publishedAt}` : ""}\n${result.snippet || "No snippet available."}\nSource: ${result.url}`)
   ].join("\n");
 }
