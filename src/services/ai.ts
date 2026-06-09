@@ -140,12 +140,7 @@ async function generateGeminiDailyTip(channelName: string, channelPurpose: strin
 
 export async function generateOrgAiReply(userMessage: string, displayName: string, researchContext?: string) {
   if (config.geminiApiKey) {
-    try {
-      return await generateGeminiOrgAiReply(userMessage, displayName, researchContext);
-    } catch (error) {
-      if (!config.groqApiKey) throw error;
-      console.error("Gemini request failed, falling back to Groq:", error);
-    }
+    return generateGeminiOrgAiReply(userMessage, displayName, researchContext);
   }
 
   if (!config.groqApiKey) {
@@ -204,7 +199,7 @@ async function generateGeminiOrgAiReply(userMessage: string, displayName: string
         {
           parts: [
             {
-              text: `${displayName}: ${userMessage}${researchContext ? `\n\nAvailable public/community data:\n${researchContext}` : ""}\n\nUse Google Search grounding when it helps. Give the best answer you can find, keep it short, and include useful source links.`
+              text: `${displayName}: ${userMessage}${researchContext ? `\n\nLocal bot data, if useful:\n${researchContext}` : ""}\n\nYou MUST use Google Search grounding for current factual questions, item buy locations, ship loadouts, guides, prices, patches, and Star Citizen gameplay facts. Search the open web, compare sources, then answer with the best practical answer. Include source links. If local bot data conflicts with grounded Google Search results, prefer grounded Google Search.`
             }
           ]
         }
@@ -232,5 +227,16 @@ async function generateGeminiOrgAiReply(userMessage: string, displayName: string
     throw new ApiError("Gemini returned no text");
   }
 
-  return `${text}${geminiSources(data)}`.trim().slice(0, 1800);
+  const sources = geminiSources(data);
+  if (!sources) {
+    throw new ApiError("Gemini did not return grounded web sources");
+  }
+
+  return `${text}${sources}`.trim().slice(0, 1800);
+}
+
+export function aiProviderLabel() {
+  if (config.geminiApiKey) return `Gemini web search (${config.geminiModel})`;
+  if (config.groqApiKey) return `Groq text only (${config.groqModel})`;
+  return "No AI provider configured";
 }

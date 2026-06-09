@@ -6,7 +6,7 @@ import { errorMessage } from "./utils/errors.js";
 import { welcomeNewMember } from "./events/welcome.js";
 import { handleRoleButton } from "./utils/roles.js";
 import { startScheduledPosts } from "./services/scheduler.js";
-import { generateOrgAiReply } from "./services/ai.js";
+import { aiProviderLabel, generateOrgAiReply } from "./services/ai.js";
 import { buildResearchContext } from "./services/research.js";
 import { getExecutiveHangarStatus } from "./services/executive-hangar.js";
 
@@ -18,6 +18,7 @@ const client = new Client({
 
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`Ready as ${readyClient.user.tag}. Contracts are open.`);
+  console.log(`AI chat provider: ${aiProviderLabel()}`);
   startScheduledPosts(client);
 });
 
@@ -101,7 +102,7 @@ client.on(Events.MessageCreate, async (message) => {
     await message.reply(reply);
   } catch (error) {
     console.error("AI chat failed:", error);
-    await message.reply("Comms glitch. I could not reach the org AI brain right now.");
+    await message.reply("Gemini web search failed or returned no grounded sources. Check Railway logs and make sure `GEMINI_API_KEY` is set.");
   }
 });
 
