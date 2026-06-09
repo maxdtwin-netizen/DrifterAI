@@ -1,6 +1,6 @@
 {
   "name": "star-citizen-org-discord-bot",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "description": "Mercenary-style Discord bot for a Star Citizen organization server.",
   "main": "dist/index.js",
   "scripts": {

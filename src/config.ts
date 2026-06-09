@@ -8,6 +8,11 @@ function envValue(...names: string[]) {
   return "";
 }
 
+const rawGroqApiKey = envValue("GROQ_API_KEY");
+const rawGroqModel = envValue("GROQ_MODEL");
+const groqSlotContainsGeminiKey = rawGroqApiKey.startsWith("AIza");
+const groqSlotContainsGeminiModel = rawGroqModel.startsWith("gemini-");
+
 export const config = {
   discordToken: envValue("DISCORD_TOKEN"),
   discordClientId: envValue("DISCORD_CLIENT_ID"),
@@ -17,11 +22,11 @@ export const config = {
   // Optional. Needed for most StarCitizen-API public RSI endpoints.
   starCitizenApiKey: envValue("STAR_CITIZEN_API_KEY"),
   // Optional. Needed for AI-generated daily channel tips through Groq.
-  groqApiKey: envValue("GROQ_API_KEY"),
-  groqModel: envValue("GROQ_MODEL") || "llama-3.3-70b-versatile",
+  groqApiKey: groqSlotContainsGeminiKey ? "" : rawGroqApiKey,
+  groqModel: groqSlotContainsGeminiModel ? "llama-3.3-70b-versatile" : rawGroqModel || "llama-3.3-70b-versatile",
   // Optional. If set, DrifterAI uses Gemini with Google Search grounding for chat answers.
-  geminiApiKey: envValue("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GEMINI_API_KEY"),
-  geminiModel: envValue("GEMINI_MODEL") || "gemini-3.5-flash",
+  geminiApiKey: envValue("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GEMINI_API_KEY") || (groqSlotContainsGeminiKey ? rawGroqApiKey : ""),
+  geminiModel: envValue("GEMINI_MODEL") || (groqSlotContainsGeminiModel ? rawGroqModel : "") || "gemini-3.5-flash",
   // Optional calibration point for the executive hangar cycle.
   // This should be a UTC time when the cycle resets to the start of red phase.
   execHangarCycleResetUtc: process.env.EXEC_HANGAR_CYCLE_RESET_UTC ?? "2026-06-05T16:50:48Z",

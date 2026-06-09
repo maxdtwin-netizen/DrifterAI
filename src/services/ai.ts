@@ -247,12 +247,16 @@ export function aiEnvDebugLabel() {
   const nearbyEnvNames = Object.keys(process.env)
     .filter((name) => /gemini|google/i.test(name))
     .sort();
+  const groqSlotLooksGemini = Boolean(process.env.GROQ_API_KEY?.trim().startsWith("AIza"));
+  const groqModelLooksGemini = Boolean(process.env.GROQ_MODEL?.trim().startsWith("gemini-"));
 
   return [
     `Gemini env present: ${presentGeminiNames.length ? presentGeminiNames.join(", ") : "no"}`,
     `Gemini key loaded: ${config.geminiApiKey ? "yes" : "no"}`,
     `Gemini key length: ${config.geminiApiKey.length}`,
     `Gemini model: ${config.geminiModel}`,
-    `Gemini-like env names: ${nearbyEnvNames.length ? nearbyEnvNames.join(", ") : "none"}`
+    `Gemini-like env names: ${nearbyEnvNames.length ? nearbyEnvNames.join(", ") : "none"}`,
+    `Groq slot as Gemini key: ${groqSlotLooksGemini ? "yes" : "no"}`,
+    `Groq model slot as Gemini model: ${groqModelLooksGemini ? "yes" : "no"}`
   ].join(" | ");
 }
