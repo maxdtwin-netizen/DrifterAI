@@ -43,6 +43,8 @@ function afterKeyword(message: string, keywords: string[]) {
 
 function shouldSearchWeb(message: string, hasSourceData: boolean) {
   const lower = message.toLowerCase();
+  if (/\bwikelo\b/.test(lower)) return true;
+
   if (/\b(search|web|internet|online|look up|lookup|google|source|latest|current|today|now)\b/.test(lower)) {
     return true;
   }
@@ -242,7 +244,7 @@ export async function buildResearchContext(message: string) {
       const results = await searchStarCitizenWeb(focusedWebSearchQuery(message));
       const formattedResults = formatWebSearchResults(results);
       if (formattedResults) {
-        parts.push(`${formattedResults}\nUse these as web sources. Prefer the most specific source for the user's question: item-finder/shop pages for buy locations, UEX/SC Trade Tools for commodities, Erkul/Hardpoint/community pages for loadouts, Wikelo trackers/Wiki pages for Wikelo contracts. Include 1-3 relevant source links in the answer, but do not repeat the same link twice.`);
+        parts.push(`${formattedResults}\nUse these as web sources. For Wikelo questions, prefer current web results from Wikelo trackers/tools over older local fallback data when they conflict. Prefer the most specific source for the user's question: item-finder/shop pages for buy locations, UEX/SC Trade Tools for commodities, Erkul/Hardpoint/community pages for loadouts, Wikelo trackers/Wiki pages for Wikelo contracts. Include 1-3 relevant source links in the answer, but do not repeat the same link twice.`);
       }
     } catch (error) {
       parts.push(`Public web search failed: ${error instanceof Error ? error.message : "unknown error"}`);
