@@ -1,6 +1,8 @@
 {
-  "autoNews": true,
+  "autoNews": false,
   "autoStatus": true,
   "autoTradeTips": false,
-  "autoAiTips": false
+  "autoAiTips": false,
+  "autoWebIntel": true,
+  "autoPatchNotes": true
 }

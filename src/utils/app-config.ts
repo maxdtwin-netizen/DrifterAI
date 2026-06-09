@@ -5,13 +5,17 @@ export type AppConfig = {
   autoStatus: boolean;
   autoTradeTips: boolean;
   autoAiTips: boolean;
+  autoWebIntel: boolean;
+  autoPatchNotes: boolean;
 };
 
 const defaultConfig: AppConfig = {
-  autoNews: true,
+  autoNews: false,
   autoStatus: true,
   autoTradeTips: false,
-  autoAiTips: true
+  autoAiTips: false,
+  autoWebIntel: true,
+  autoPatchNotes: true
 };
 
 const configPath = "config.json";

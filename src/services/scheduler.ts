@@ -3,10 +3,11 @@ import { getSetting } from "../db.js";
 import { getStatusInfo } from "./rsi.js";
 import { loadAppConfig } from "../utils/app-config.js";
 import { baseEmbed, trimText } from "../utils/format.js";
-import { getLatestNews } from "./news.js";
+import { getLatestNews, getLatestPatchNotes } from "./news.js";
 import { setSetting } from "../db.js";
-import { generateDailyTip } from "./ai.js";
+import { generateDailyTip, generateWebIntelPost } from "./ai.js";
 import { postBotReleaseNotesIfNeeded } from "./bot-release-notes.js";
+import { searchStarCitizenWeb } from "./web-search.js";
 
 const aiTipChannels: Record<string, string> = {
   "ship-talk": "Ship discussion, fleet planning, what to buy, what to bring to operations, and ship questions.",
@@ -19,6 +20,33 @@ const aiTipChannels: Record<string, string> = {
   mining: "Mining advice, material planning, refinery choices, crew mining, and sell-location discussion.",
   salvage: "Salvage work, wreck finding, Vulture/Reclaimer crew planning, RMC/CM logistics, and payout splits.",
   "cargo-prices": "Commodity price discussion and reminders to verify terminal prices in-game."
+};
+
+const webIntelChannels: Record<string, { purpose: string; query: string }> = {
+  "sc-news": {
+    purpose: "latest Star Citizen news",
+    query: "latest Star Citizen news RSI comm-link today"
+  },
+  "ship-talk": {
+    purpose: "ship news, ship release, future ship release, ship sale, vehicle updates",
+    query: "Star Citizen ship release future ship release vehicle news"
+  },
+  loadouts: {
+    purpose: "new strong ship loadout or useful ship loadout video",
+    query: "Star Citizen best ship loadout new meta YouTube Erkul Hardpoint"
+  },
+  "trade-routes": {
+    purpose: "profitable trade routes and cargo hauling opportunities",
+    query: "Star Citizen most profitable trade routes UEX SC Trade Tools"
+  },
+  mining: {
+    purpose: "mining tips, mining modules, mining heads, mining gadgets, mining accessories",
+    query: "Star Citizen mining tips mining modules gadgets accessories"
+  },
+  "intel-drops": {
+    purpose: "profitable missions, secrets, hidden opportunities, useful discoveries",
+    query: "Star Citizen most profitable missions secrets hidden locations money making"
+  }
 };
 
 async function getTextChannel(client: Client, settingKey: string) {
@@ -44,6 +72,10 @@ function shuffled<T>(items: T[]) {
   return [...items].sort(() => Math.random() - 0.5);
 }
 
+function settingKeyForUrl(prefix: string, url: string) {
+  return `${prefix}:${Buffer.from(url).toString("base64url").slice(0, 120)}`;
+}
+
 export function startScheduledPosts(client: Client) {
   const appConfig = loadAppConfig();
 
@@ -55,20 +87,17 @@ export function startScheduledPosts(client: Client) {
 
   if (appConfig.autoStatus) {
     const postStatus = async () => {
-      const channel = await getTextChannel(client, "statusChannelId");
+      const channel = await getTextChannelWithNameFallback(client, "statusChannelId", "game-status");
       if (!channel) return;
 
       try {
         const status = await getStatusInfo();
-        const statusSignature = JSON.stringify({
-          status: status.status,
-          summary: status.summary
-        });
+        const statusSignature = status.status;
         const lastStatusSignature = getSetting("lastStatusSignature")?.value;
         if (lastStatusSignature === statusSignature) return;
 
         await channel.send({
-          embeds: [baseEmbed("Star Citizen Status").setURL("https://status.robertsspaceindustries.com/").setDescription(status.summary).addFields({ name: "Status", value: status.status })]
+          embeds: [baseEmbed("Star Citizen Platform Status").setURL("https://status.robertsspaceindustries.com/").setDescription("Platform status changed.").addFields({ name: "Platform", value: status.status })]
         });
         setSetting("lastStatusSignature", statusSignature);
       } catch (error) {
@@ -78,6 +107,34 @@ export function startScheduledPosts(client: Client) {
 
     setTimeout(postStatus, 45 * 1000);
     setInterval(postStatus, 60 * 60 * 1000);
+  }
+
+  if (appConfig.autoPatchNotes) {
+    const postPatchNotes = async () => {
+      const channel = await getTextChannelByName(client, "patch-notes");
+      if (!channel) return;
+
+      try {
+        const [latest] = await getLatestPatchNotes(1);
+        if (!latest) return;
+
+        const lastPosted = getSetting("lastScPatchNotesLink")?.value;
+        if (lastPosted === latest.link) return;
+
+        const embed = baseEmbed("Star Citizen Patch Notes")
+          .setTitle(latest.title)
+          .setURL(latest.link)
+          .setDescription(trimText(latest.description ?? "New Star Citizen patch notes found.", 700));
+
+        await channel.send({ embeds: [embed] });
+        setSetting("lastScPatchNotesLink", latest.link);
+      } catch (error) {
+        console.error("Auto SC patch notes post failed:", error);
+      }
+    };
+
+    setTimeout(postPatchNotes, 75 * 1000);
+    setInterval(postPatchNotes, 24 * 60 * 60 * 1000);
   }
 
   if (appConfig.autoNews) {
@@ -111,6 +168,42 @@ export function startScheduledPosts(client: Client) {
   if (appConfig.autoTradeTips) {
     // TODO: Add UEX daily trade tip once a stable endpoint/key is configured.
     console.log("Auto trade tips enabled, but no trade-tip endpoint is configured yet.");
+  }
+
+  if (appConfig.autoWebIntel) {
+    const postWebIntel = async () => {
+      const day = new Date().toISOString().slice(0, 10);
+      const dailySettingKey = `webIntelPosted:${day}`;
+      if (getSetting(dailySettingKey)?.value) return;
+
+      for (const [channelName, intel] of shuffled(Object.entries(webIntelChannels))) {
+        const channel = await getTextChannelByName(client, channelName);
+        if (!channel) continue;
+
+        try {
+          const results = await searchStarCitizenWeb(intel.query);
+          const unusedResults = results.filter((result) => !getSetting(settingKeyForUrl("webIntelLink", result.url))?.value);
+          const sources = unusedResults.slice(0, 3);
+          if (!sources.length) continue;
+
+          const post = await generateWebIntelPost(channelName, intel.purpose, sources);
+          await channel.send({
+            embeds: [baseEmbed(`Daily Intel: #${channelName}`).setDescription(post)]
+          });
+
+          for (const source of sources) {
+            setSetting(settingKeyForUrl("webIntelLink", source.url), new Date().toISOString());
+          }
+          setSetting(dailySettingKey, `${channel.id}:${sources[0].url}`);
+          return;
+        } catch (error) {
+          console.error(`Daily web intel failed for #${channelName}:`, error);
+        }
+      }
+    };
+
+    setTimeout(postWebIntel, 2 * 60 * 1000);
+    setInterval(postWebIntel, 60 * 60 * 1000);
   }
 
   if (appConfig.autoAiTips) {
