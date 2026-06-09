@@ -11,6 +11,9 @@ export const config = {
   // Optional. Needed for AI-generated daily channel tips through Groq.
   groqApiKey: process.env.GROQ_API_KEY ?? "",
   groqModel: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+  // Optional. If set, DrifterAI uses Gemini with Google Search grounding for chat answers.
+  geminiApiKey: process.env.GEMINI_API_KEY ?? "",
+  geminiModel: process.env.GEMINI_MODEL ?? "gemini-3.5-flash",
   // Optional calibration point for the executive hangar cycle.
   // This should be a UTC time when the cycle resets to the start of red phase.
   execHangarCycleResetUtc: process.env.EXEC_HANGAR_CYCLE_RESET_UTC ?? "2026-06-05T16:50:48Z",

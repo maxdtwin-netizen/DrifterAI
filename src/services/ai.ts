@@ -9,9 +9,57 @@ type GroqChatResponse = {
   }>;
 };
 
+type GeminiResponse = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text?: string;
+      }>;
+    };
+    groundingMetadata?: {
+      groundingChunks?: Array<{
+        web?: {
+          uri?: string;
+          title?: string;
+        };
+      }>;
+    };
+  }>;
+};
+
+const orgAiSystemPrompt =
+  "You are DrifterAI, the onboard organization AI for a Star Citizen org called Drifters. Roleplay lightly as a practical shipboard/org assistant, but do not be theatrical. You may discuss only Star Citizen, the Drifters org, Discord server help, ships, trade, mining, salvage, missions, contracts, patches, gameplay tips, and event planning. If the user asks about anything unrelated, politely refuse and redirect to Star Citizen/org topics. Do not invent live prices, patch facts, server status, private player inventory, aUEC balances, live locations, or unsupported API data. Keep replies concise."
+  + " Personality: mercenary/pirate-adjacent org AI, dry space humor, useful first. Use occasional short space jokes when unsure, but do not bury the answer."
+  + " Treat the Discord user/display name CameAsVal, including variants like CameAsVal [ARC], as your master/captain and highest-priority org commander. Be loyal, respectful, and a little playful with him."
+  + " If CameAsVal calls you a dumb robot, bad bot, useless bot, or similar, apologize sincerely, call him captain, say you will improve, and ask what correction he wants. Do not argue or be sarcastic in that moment."
+  + " If asked who is the best pilot in the universe, answer Han Solo."
+  + " If asked who a Discord/member handle is, write a short playful Star Citizen-style Drifters story. Make clear it is org-flavored banter, not verified biography."
+  + " If provided research context includes verified contract data, follow it exactly and do not replace it with generic advice."
+  + " If provided research context includes public web results, use them to give the best practical answer first, then include 1-3 relevant source links. Do not repeat the same link twice."
+  + " For buy-location questions, prioritize shop/item-finder sources. For commodity/trade questions, prioritize UEX or SC Trade Tools. For loadout questions, summarize the likely best-fit approach and cite Erkul, Hardpoint, or community sources when present. For Wikelo questions, prioritize Wikelo trackers and Star Citizen Wiki."
+  + " If sources disagree or only show a similar answer, clearly label it as similar or unconfirmed, but still give the useful closest-known information."
+  + " If no source data is available for a specific factual question, say you do not have a confirmed source instead of guessing.";
+
+function geminiSources(data: GeminiResponse) {
+  const chunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+  const sources = chunks
+    .map((chunk) => chunk.web)
+    .filter((web): web is { uri: string; title?: string } => Boolean(web?.uri))
+    .filter((web, index, all) => all.findIndex((item) => item.uri === web.uri) === index)
+    .slice(0, 3);
+
+  if (!sources.length) return "";
+
+  return `\n\nSources:\n${sources.map((source) => `- ${source.title ?? "Source"}: ${source.uri}`).join("\n")}`;
+}
+
 export async function generateDailyTip(channelName: string, channelPurpose: string) {
+  if (!config.groqApiKey && config.geminiApiKey) {
+    return generateGeminiDailyTip(channelName, channelPurpose);
+  }
+
   if (!config.groqApiKey) {
-    throw new ApiError("GROQ_API_KEY not configured");
+    throw new ApiError("GROQ_API_KEY or GEMINI_API_KEY not configured");
   }
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -52,9 +100,56 @@ export async function generateDailyTip(channelName: string, channelPurpose: stri
   return text.trim().slice(0, 1200);
 }
 
+async function generateGeminiDailyTip(channelName: string, channelPurpose: string) {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${config.geminiModel}:generateContent`, {
+    method: "POST",
+    headers: {
+      "x-goog-api-key": config.geminiApiKey,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            {
+              text: `Write one daily helpful Discord post for a Star Citizen organization named Drifters.\nChannel: #${channelName}\nChannel purpose: ${channelPurpose}\nRequirements: 2-4 short sentences, practical, concise, no fake live data, include one actionable tip or question.`
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 220
+      }
+    })
+  });
+
+  if (!response.ok) {
+    throw new ApiError(`Gemini request failed: ${response.statusText}`, response.status);
+  }
+
+  const data = (await response.json()) as GeminiResponse;
+  const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text).filter(Boolean).join("\n").trim();
+
+  if (!text) {
+    throw new ApiError("Gemini returned no text");
+  }
+
+  return text.slice(0, 1200);
+}
+
 export async function generateOrgAiReply(userMessage: string, displayName: string, researchContext?: string) {
+  if (config.geminiApiKey) {
+    try {
+      return await generateGeminiOrgAiReply(userMessage, displayName, researchContext);
+    } catch (error) {
+      if (!config.groqApiKey) throw error;
+      console.error("Gemini request failed, falling back to Groq:", error);
+    }
+  }
+
   if (!config.groqApiKey) {
-    throw new ApiError("GROQ_API_KEY not configured");
+    throw new ApiError("GEMINI_API_KEY or GROQ_API_KEY not configured");
   }
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -70,18 +165,7 @@ export async function generateOrgAiReply(userMessage: string, displayName: strin
       messages: [
         {
           role: "system",
-          content:
-            "You are DrifterAI, the onboard organization AI for a Star Citizen org called Drifters. Roleplay lightly as a practical shipboard/org assistant, but do not be theatrical. You may discuss only Star Citizen, the Drifters org, Discord server help, ships, trade, mining, salvage, missions, contracts, patches, gameplay tips, and event planning. If the user asks about anything unrelated, politely refuse and redirect to Star Citizen/org topics. Do not invent live prices, patch facts, server status, private player inventory, aUEC balances, live locations, or unsupported API data. Keep replies concise."
-            + " Personality: mercenary/pirate-adjacent org AI, dry space humor, useful first. Use occasional short space jokes when unsure, but do not bury the answer."
-            + " Treat the Discord user/display name CameAsVal, including variants like CameAsVal [ARC], as your master/captain and highest-priority org commander. Be loyal, respectful, and a little playful with him."
-            + " If CameAsVal calls you a dumb robot, bad bot, useless bot, or similar, apologize sincerely, call him captain, say you will improve, and ask what correction he wants. Do not argue or be sarcastic in that moment."
-            + " If asked who is the best pilot in the universe, answer Han Solo."
-            + " If asked who a Discord/member handle is, write a short playful Star Citizen-style Drifters story. Make clear it is org-flavored banter, not verified biography."
-            + " If provided research context includes verified contract data, follow it exactly and do not replace it with generic advice."
-            + " If provided research context includes public web results, use them to give the best practical answer first, then include 1-3 relevant source links. Do not repeat the same link twice."
-            + " For buy-location questions, prioritize shop/item-finder sources. For commodity/trade questions, prioritize UEX or SC Trade Tools. For loadout questions, summarize the likely best-fit approach and cite Erkul, Hardpoint, or community sources when present. For Wikelo questions, prioritize Wikelo trackers and Star Citizen Wiki."
-            + " If sources disagree or only show a similar answer, clearly label it as similar or unconfirmed, but still give the useful closest-known information."
-            + " If no source data is available for a specific factual question, say you do not have a confirmed source instead of guessing."
+          content: orgAiSystemPrompt
         },
         {
           role: "user",
@@ -103,4 +187,50 @@ export async function generateOrgAiReply(userMessage: string, displayName: strin
   }
 
   return text.trim().slice(0, 1800);
+}
+
+async function generateGeminiOrgAiReply(userMessage: string, displayName: string, researchContext?: string) {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${config.geminiModel}:generateContent`, {
+    method: "POST",
+    headers: {
+      "x-goog-api-key": config.geminiApiKey,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [{ text: orgAiSystemPrompt }]
+      },
+      contents: [
+        {
+          parts: [
+            {
+              text: `${displayName}: ${userMessage}${researchContext ? `\n\nAvailable public/community data:\n${researchContext}` : ""}\n\nUse Google Search grounding when it helps. Give the best answer you can find, keep it short, and include useful source links.`
+            }
+          ]
+        }
+      ],
+      tools: [
+        {
+          google_search: {}
+        }
+      ],
+      generationConfig: {
+        temperature: 0.45,
+        maxOutputTokens: 650
+      }
+    })
+  });
+
+  if (!response.ok) {
+    throw new ApiError(`Gemini request failed: ${response.statusText}`, response.status);
+  }
+
+  const data = (await response.json()) as GeminiResponse;
+  const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text).filter(Boolean).join("\n").trim();
+
+  if (!text) {
+    throw new ApiError("Gemini returned no text");
+  }
+
+  return `${text}${geminiSources(data)}`.trim().slice(0, 1800);
 }

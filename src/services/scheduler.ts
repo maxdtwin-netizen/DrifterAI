@@ -1,10 +1,9 @@
 import type { Client } from "discord.js";
 import { getSetting } from "../db.js";
 import { getStatusInfo } from "./rsi.js";
-import { getPatchInfo } from "./rsi.js";
 import { loadAppConfig } from "../utils/app-config.js";
 import { baseEmbed, trimText } from "../utils/format.js";
-import { getLatestNews, getLatestPatchNotes } from "./news.js";
+import { getLatestNews } from "./news.js";
 import { setSetting } from "../db.js";
 import { generateDailyTip } from "./ai.js";
 import { postBotReleaseNotesIfNeeded } from "./bot-release-notes.js";
@@ -107,46 +106,6 @@ export function startScheduledPosts(client: Client) {
 
     setTimeout(postNews, 30 * 1000);
     setInterval(postNews, 60 * 60 * 1000);
-  }
-
-  const postPatchNotes = async () => {
-    const channel = await getTextChannelWithNameFallback(client, "patchNotesChannelId", "drifterai-patch-notes");
-    if (!channel) return;
-
-    try {
-      const [latest] = await getLatestPatchNotes(1);
-      const version = await getPatchInfo().catch(() => undefined);
-      if (!latest && !version) return;
-
-      const patchSignature = JSON.stringify({
-        link: latest?.link,
-        live: version?.live,
-        ptu: version?.ptu
-      });
-      const lastPosted = getSetting("lastPatchSignature")?.value;
-      if (lastPosted === patchSignature) return;
-
-      const embed = baseEmbed("Star Citizen Patch Update")
-        .setTitle(latest?.title ?? "Star Citizen Version Update")
-        .setDescription(trimText(latest?.description ?? version?.summary ?? "New version information detected. Verify details on official sources.", 650))
-        .addFields(
-          { name: "LIVE", value: version?.live ?? "Unknown", inline: true },
-          { name: "PTU", value: version?.ptu ?? "Unknown", inline: true }
-        );
-
-      if (latest?.link) embed.setURL(latest.link);
-
-      await channel.send({ embeds: [embed] });
-      setSetting("patchNotesChannelId", channel.id);
-      setSetting("lastPatchSignature", patchSignature);
-    } catch (error) {
-      console.error("Auto patch notes post failed:", error);
-    }
-  };
-
-  if (appConfig.autoNews) {
-    setTimeout(postPatchNotes, 60 * 1000);
-    setInterval(postPatchNotes, 60 * 60 * 1000);
   }
 
   if (appConfig.autoTradeTips) {

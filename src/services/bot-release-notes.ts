@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { AttachmentBuilder, type Client } from "discord.js";
+import type { Client } from "discord.js";
 import { getSetting, setSetting } from "../db.js";
 import { baseEmbed, trimText } from "../utils/format.js";
 
@@ -36,12 +36,14 @@ function releaseNotesPath(version: string) {
   return join(process.cwd(), "outputs", `DrifterAI-v${version}-patch-notes.md`);
 }
 
-function releaseSummary(markdown: string) {
-  return markdown
-    .replace(/^# .+$/m, "")
-    .replace(/^## /gm, "**")
-    .replace(/\n/g, "\n")
-    .trim();
+function releaseBullets(markdown: string) {
+  const bullets = markdown
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("- "))
+    .map((line) => line.replace(/^- /, "- "));
+
+  return bullets.length ? bullets.join("\n") : "Patch notes updated.";
 }
 
 export async function postBotReleaseNotesIfNeeded(client: Client) {
@@ -59,13 +61,11 @@ export async function postBotReleaseNotesIfNeeded(client: Client) {
 
   const markdown = readFileSync(notesPath, "utf8");
   const embed = baseEmbed(`DrifterAI Update v${version}`)
-    .setDescription(trimText(releaseSummary(markdown), 1200))
-    .addFields({ name: "Channel", value: "Bot patch notes", inline: true });
-  const attachment = new AttachmentBuilder(notesPath, { name: `DrifterAI-v${version}-patch-notes.md` });
+    .setDescription(trimText(releaseBullets(markdown), 900))
+    .addFields({ name: "Version", value: `v${version}`, inline: true });
 
   await channel.send({
-    embeds: [embed],
-    files: [attachment]
+    embeds: [embed]
   });
 
   setSetting("patchNotesChannelId", channel.id);

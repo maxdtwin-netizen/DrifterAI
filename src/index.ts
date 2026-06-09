@@ -80,8 +80,8 @@ client.on(Events.MessageCreate, async (message) => {
   const isAiChat = Boolean(aiChatChannelId && message.channelId === aiChatChannelId);
   if (!isAiChat && !calledByMention && !calledByName) return;
 
-  if (!config.groqApiKey) {
-    await message.reply("GROQ_API_KEY is not configured, captain. Add it to `.env` and restart me.");
+  if (!config.groqApiKey && !config.geminiApiKey) {
+    await message.reply("No AI key is configured, captain. Add `GEMINI_API_KEY` or `GROQ_API_KEY` to `.env` and restart me.");
     return;
   }
 

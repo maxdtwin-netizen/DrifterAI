@@ -30,6 +30,8 @@ GROQ_MODEL=llama-3.3-70b-versatile
 
 `GROQ_API_KEY` is optional. If set, DrifterAI can post useful AI-generated daily tips. Without it, AI commands return `API key not configured`.
 
+`GEMINI_API_KEY` is optional but recommended for chat research. If set, DrifterAI uses Gemini with Google Search grounding for broader web answers, then falls back to Groq if Gemini is unavailable.
+
 ## Discord Developer Portal
 
 In your bot application:
