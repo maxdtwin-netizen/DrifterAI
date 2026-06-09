@@ -2,5 +2,5 @@
   "autoNews": true,
   "autoStatus": true,
   "autoTradeTips": false,
-  "autoAiTips": true
+  "autoAiTips": false
 }
