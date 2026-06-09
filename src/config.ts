@@ -10,8 +10,6 @@ function envValue(...names: string[]) {
 
 const rawGroqApiKey = envValue("GROQ_API_KEY");
 const rawGroqModel = envValue("GROQ_MODEL");
-const groqSlotContainsGeminiKey = rawGroqApiKey.startsWith("AIza");
-const groqSlotContainsGeminiModel = rawGroqModel.startsWith("gemini-");
 
 export const config = {
   discordToken: envValue("DISCORD_TOKEN"),
@@ -22,11 +20,12 @@ export const config = {
   // Optional. Needed for most StarCitizen-API public RSI endpoints.
   starCitizenApiKey: envValue("STAR_CITIZEN_API_KEY"),
   // Optional. Needed for AI-generated daily channel tips through Groq.
-  groqApiKey: groqSlotContainsGeminiKey ? "" : rawGroqApiKey,
-  groqModel: groqSlotContainsGeminiModel ? "llama-3.3-70b-versatile" : rawGroqModel || "llama-3.3-70b-versatile",
-  // Optional. If set, DrifterAI uses Gemini with Google Search grounding for chat answers.
-  geminiApiKey: envValue("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GEMINI_API_KEY") || (groqSlotContainsGeminiKey ? rawGroqApiKey : ""),
-  geminiModel: envValue("GEMINI_MODEL") || (groqSlotContainsGeminiModel ? rawGroqModel : "") || "gemini-3.5-flash",
+  groqApiKey: rawGroqApiKey,
+  groqModel: rawGroqModel || "meta-llama/llama-4-scout-17b-16e-instruct",
+  // Optional. Use one of these for web answers before Groq writes the reply.
+  braveSearchApiKey: envValue("BRAVE_SEARCH_API_KEY"),
+  tavilyApiKey: envValue("TAVILY_API_KEY"),
+  webSearchProvider: envValue("WEB_SEARCH_PROVIDER") || "auto",
   // Optional calibration point for the executive hangar cycle.
   // This should be a UTC time when the cycle resets to the start of red phase.
   execHangarCycleResetUtc: process.env.EXEC_HANGAR_CYCLE_RESET_UTC ?? "2026-06-05T16:50:48Z",

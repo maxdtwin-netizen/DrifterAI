@@ -3,6 +3,8 @@ import { ApiError } from "./errors.js";
 type JsonRequestOptions = {
   headers?: Record<string, string>;
   timeoutMs?: number;
+  method?: "GET" | "POST";
+  body?: string;
 };
 
 const lastRequestByHost = new Map<string, number>();
@@ -36,11 +38,13 @@ export async function fetchJson<T>(url: URL | string, options: JsonRequestOption
     await respectRateLimit(requestUrl);
 
     const response = await fetch(requestUrl, {
+      method: options.method ?? "GET",
       headers: {
         Accept: "application/json",
         "User-Agent": "StarCitizenOrgDiscordBot/1.0",
         ...options.headers
       },
+      body: options.body,
       signal: controller.signal
     });
 

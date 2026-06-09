@@ -82,8 +82,8 @@ client.on(Events.MessageCreate, async (message) => {
   const isAiChat = Boolean(aiChatChannelId && message.channelId === aiChatChannelId);
   if (!isAiChat && !calledByMention && !calledByName) return;
 
-  if (!config.groqApiKey && !config.geminiApiKey) {
-    await message.reply("No AI key is configured, captain. Add `GEMINI_API_KEY` or `GROQ_API_KEY` to `.env` and restart me.");
+  if (!config.groqApiKey) {
+    await message.reply("GROQ_API_KEY is not configured, captain. Add it to `.env` or Railway variables and restart me.");
     return;
   }
 
@@ -103,7 +103,7 @@ client.on(Events.MessageCreate, async (message) => {
     await message.reply(reply);
   } catch (error) {
     console.error("AI chat failed:", error);
-    await message.reply("Gemini web search failed or returned no grounded sources. Check Railway logs and make sure `GEMINI_API_KEY` is set.");
+    await message.reply("Comms glitch. Search or Groq failed. Check Railway logs for the exact error.");
   }
 });
 

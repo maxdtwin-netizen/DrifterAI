@@ -1,10 +1,31 @@
 import { cache, ttl } from "../utils/cache.js";
-import { fetchText } from "../utils/http.js";
+import { fetchJson, fetchText } from "../utils/http.js";
+import { config } from "../config.js";
 
 export type WebSearchResult = {
   title: string;
   url: string;
   snippet: string;
+  source?: "brave" | "tavily" | "duckduckgo";
+};
+
+type BraveSearchResponse = {
+  web?: {
+    results?: Array<{
+      title?: string;
+      url?: string;
+      description?: string;
+    }>;
+  };
+};
+
+type TavilySearchResponse = {
+  answer?: string;
+  results?: Array<{
+    title?: string;
+    url?: string;
+    content?: string;
+  }>;
 };
 
 const allowedHosts = [
@@ -110,7 +131,8 @@ function parseDuckDuckGoResults(html: string) {
     const result = {
       title: stripTags(linkMatch[2]).slice(0, 120),
       url,
-      snippet: stripTags(snippetMatch?.[1] ?? "").slice(0, 280)
+      snippet: stripTags(snippetMatch?.[1] ?? "").slice(0, 280),
+      source: "duckduckgo" as const
     };
 
     if (result.title && !results.some((item) => item.url === result.url)) {
@@ -119,6 +141,88 @@ function parseDuckDuckGoResults(html: string) {
   }
 
   return results.slice(0, 5);
+}
+
+async function searchBrave(query: string) {
+  if (!config.braveSearchApiKey) return [];
+
+  const url = new URL("https://api.search.brave.com/res/v1/web/search");
+  url.searchParams.set("q", `Star Citizen ${query}`);
+  url.searchParams.set("count", "7");
+  url.searchParams.set("country", "us");
+  url.searchParams.set("search_lang", "en");
+
+  const data = await fetchJson<BraveSearchResponse>(url, {
+    headers: {
+      Accept: "application/json",
+      "X-Subscription-Token": config.braveSearchApiKey
+    },
+    timeoutMs: 12000
+  });
+
+  return (data.web?.results ?? [])
+    .map((result) => ({
+      title: stripTags(result.title ?? "Web result").slice(0, 120),
+      url: result.url ?? "",
+      snippet: stripTags(result.description ?? "").slice(0, 360),
+      source: "brave" as const
+    }))
+    .filter((result) => result.url);
+}
+
+async function searchTavily(query: string) {
+  if (!config.tavilyApiKey) return [];
+
+  const data = await fetchJson<TavilySearchResponse>("https://api.tavily.com/search", {
+    headers: {
+      Authorization: `Bearer ${config.tavilyApiKey}`,
+      "Content-Type": "application/json"
+    },
+    timeoutMs: 12000,
+    method: "POST",
+    body: JSON.stringify({
+      api_key: config.tavilyApiKey,
+      query: `Star Citizen ${query}`,
+      search_depth: "basic",
+      max_results: 7,
+      include_answer: true,
+      include_raw_content: false
+    })
+  });
+
+  const results = (data.results ?? []).map((result) => ({
+    title: result.title ?? "Web result",
+    url: result.url ?? "",
+    snippet: (result.content ?? "").slice(0, 360),
+    source: "tavily" as const
+  })).filter((result) => result.url);
+
+  if (data.answer && results[0]) {
+    results[0].snippet = `${data.answer}\n${results[0].snippet}`.slice(0, 520);
+  }
+
+  return results;
+}
+
+async function searchDuckDuckGo(query: string) {
+  const allResults: WebSearchResult[] = [];
+
+  for (const searchQuery of intentQueries(query)) {
+    const url = new URL("https://duckduckgo.com/html/");
+    url.searchParams.set("q", `Star Citizen ${searchQuery} ${sourceFilter}`);
+
+    const html = await fetchText(url, {
+      headers: {
+        Accept: "text/html,application/xhtml+xml"
+      },
+      timeoutMs: 12000
+    });
+
+    allResults.push(...parseDuckDuckGoResults(html));
+    if (uniqueResults(allResults).length >= 7) break;
+  }
+
+  return uniqueResults(allResults).slice(0, 7);
 }
 
 function uniqueResults(results: WebSearchResult[]) {
@@ -168,24 +272,19 @@ export async function searchStarCitizenWeb(query: string) {
   if (!trimmed) return [];
 
   return cache.remember(`web-search:${trimmed.toLowerCase()}`, ttl.hours(1), async () => {
-    const allResults: WebSearchResult[] = [];
+    const provider = config.webSearchProvider.toLowerCase();
 
-    for (const searchQuery of intentQueries(trimmed)) {
-      const url = new URL("https://duckduckgo.com/html/");
-      url.searchParams.set("q", `Star Citizen ${searchQuery} ${sourceFilter}`);
-
-      const html = await fetchText(url, {
-        headers: {
-          Accept: "text/html,application/xhtml+xml"
-        },
-        timeoutMs: 12000
-      });
-
-      allResults.push(...parseDuckDuckGoResults(html));
-      if (uniqueResults(allResults).length >= 7) break;
+    if ((provider === "brave" || provider === "auto") && config.braveSearchApiKey) {
+      const results = await searchBrave(trimmed);
+      if (results.length) return uniqueResults(results).slice(0, 7);
     }
 
-    return uniqueResults(allResults).slice(0, 7);
+    if ((provider === "tavily" || provider === "auto") && config.tavilyApiKey) {
+      const results = await searchTavily(trimmed);
+      if (results.length) return uniqueResults(results).slice(0, 7);
+    }
+
+    return searchDuckDuckGo(trimmed);
   });
 }
 
@@ -194,6 +293,6 @@ export function formatWebSearchResults(results: WebSearchResult[]) {
 
   return [
     "Public web search results:",
-    ...results.map((result, index) => `${index + 1}. ${result.title}\n${result.snippet || "No snippet available."}\nSource: ${result.url}`)
+    ...results.map((result, index) => `${index + 1}. ${result.title}${result.source ? ` (${result.source})` : ""}\n${result.snippet || "No snippet available."}\nSource: ${result.url}`)
   ].join("\n");
 }
