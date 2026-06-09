@@ -43,7 +43,13 @@ function afterKeyword(message: string, keywords: string[]) {
 
 function shouldSearchWeb(message: string, hasSourceData: boolean) {
   const lower = message.toLowerCase();
-  if (/\b(search|web|internet|online|look up|lookup|google|source|latest|current|today|now|where|how|what|best|buy|sell|find|get|need)\b/.test(lower)) {
+  if (/\b(search|web|internet|online|look up|lookup|google|source|latest|current|today|now)\b/.test(lower)) {
+    return true;
+  }
+
+  if (hasSourceData) return false;
+
+  if (/\b(where|how|what|best|buy|sell|find|get|need|loadout|build|fit|guide)\b/.test(lower)) {
     return true;
   }
 
@@ -88,6 +94,7 @@ function focusedWebSearchQuery(message: string) {
 export async function buildResearchContext(message: string) {
   const lower = message.toLowerCase();
   const parts: string[] = [];
+  let hasPrimarySourceData = false;
   const personalityContext = buildPersonalityContext(message);
   if (personalityContext) parts.push(personalityContext);
 
@@ -106,6 +113,7 @@ export async function buildResearchContext(message: string) {
         "Answer directly from this contract data. Do not describe this as a normal aUEC ship purchase."
       ].join("\n")
     );
+    hasPrimarySourceData = true;
   }
 
   if (/\bwikelo\b/.test(lower) && !/\bpolaris\b/.test(lower)) {
@@ -115,6 +123,7 @@ export async function buildResearchContext(message: string) {
         parts.push(
           `Verified Wikelo contract data matching this question:\n${formatWikeloContracts(contracts)}\nAnswer directly from this contract data. Do not describe Wikelo rewards as normal aUEC purchases. If there are multiple ATLS GEO variants, list the variants and ask which one they want.`
         );
+        hasPrimarySourceData = true;
       } else {
         const similarContracts = getSimilarWikeloContracts(message);
         parts.push(
@@ -139,6 +148,7 @@ export async function buildResearchContext(message: string) {
       parts.push(
         `Executive hangar status from ${hangar.source}: ${hangar.summary}${hangar.nextChange ? ` Next change: ${hangar.nextChange}.` : ""}\nAlways include this link in the answer: https://contestedzonetimers.com/`
       );
+      hasPrimarySourceData = true;
     } catch (error) {
       parts.push(`Executive hangar timer lookup failed: ${error instanceof Error ? error.message : "unknown error"}`);
     }
@@ -148,6 +158,7 @@ export async function buildResearchContext(message: string) {
     try {
       const status = await getStatusInfo();
       parts.push(`Game status: ${status.status}\n${status.summary}`);
+      hasPrimarySourceData = true;
     } catch (error) {
       parts.push(`Game status lookup failed: ${error instanceof Error ? error.message : "unknown error"}`);
     }
@@ -157,6 +168,7 @@ export async function buildResearchContext(message: string) {
     try {
       const patch = await getPatchInfo();
       parts.push(`Version/patch info: LIVE=${fieldValue(patch.live)} PTU=${fieldValue(patch.ptu)} Summary=${fieldValue(patch.summary)}`);
+      hasPrimarySourceData = true;
     } catch (error) {
       parts.push(`Patch/version lookup failed: ${error instanceof Error ? error.message : "unknown error"}`);
     }
@@ -166,6 +178,7 @@ export async function buildResearchContext(message: string) {
     try {
       const news = await getLatestNews(3);
       parts.push(`Latest RSI news:\n${news.map((item) => `- ${item.title}: ${item.link}`).join("\n")}`);
+      hasPrimarySourceData = true;
     } catch (error) {
       parts.push(`News lookup failed: ${error instanceof Error ? error.message : "unknown error"}`);
     }
@@ -183,6 +196,7 @@ export async function buildResearchContext(message: string) {
           ? mineableLocations.map((location) => `- ${location.name} (${fieldValue(location.type)}; spawn ${fieldValue(location.spawn)}${location.occurrence ? `; occurrence ${location.occurrence}` : ""})`).join("\n")
           : "- No mineable locations found from the Wiki source."}\nNote: UEX data is community-driven and Wiki mining data should be verified in-game.`
       );
+      hasPrimarySourceData = true;
     } catch (error) {
       parts.push(`Mining/material lookup failed for ${material}: ${error instanceof Error ? error.message : "unknown error"}`);
     }
@@ -195,6 +209,7 @@ export async function buildResearchContext(message: string) {
       parts.push(
         `Commodity info for ${commodity}: best buy ${fieldValue(uexFormat.location(quote.bestBuy))} at ${numberValue(uexFormat.buyPrice(quote.bestBuy), " aUEC")}; best sell ${fieldValue(uexFormat.location(quote.bestSell))} at ${numberValue(uexFormat.sellPrice(quote.bestSell), " aUEC")}; estimated profit ${numberValue(quote.profit, " aUEC/SCU")}; updated ${relativeTime(quote.updatedAt)}. UEX data is community-driven.`
       );
+      hasPrimarySourceData = true;
     } catch (error) {
       parts.push(`Commodity lookup failed for ${commodity}: ${error instanceof Error ? error.message : "unknown error"}`);
     }
@@ -205,6 +220,7 @@ export async function buildResearchContext(message: string) {
     try {
       const ship = await findShip(shipName);
       parts.push(`Ship info for ${ship.name}: manufacturer=${fieldValue(ship.manufacturer)}, role=${fieldValue(ship.role)}, crew=${fieldValue(ship.crew)}, cargo=${fieldValue(ship.cargo)}, size=${fieldValue(ship.size)}, speed=${fieldValue(ship.speed)}.`);
+      hasPrimarySourceData = true;
     } catch {
       // Fall through to AI-only answer for fuzzy ship questions.
     }
@@ -215,12 +231,13 @@ export async function buildResearchContext(message: string) {
     try {
       const location = await findLocation(locationName);
       parts.push(`Location info for ${location.name}: type=${fieldValue(location.type)}, system=${fieldValue(location.system)}, parent=${fieldValue(location.parent)}, affiliation=${fieldValue(location.affiliation)}, description=${fieldValue(location.description)}.`);
+      hasPrimarySourceData = true;
     } catch {
       // Fall through to AI-only answer for fuzzy location questions.
     }
   }
 
-  if (shouldSearchWeb(message, parts.length > 0) || isLikelyStarCitizenTopic(message)) {
+  if (shouldSearchWeb(message, hasPrimarySourceData) || (!hasPrimarySourceData && isLikelyStarCitizenTopic(message))) {
     try {
       const results = await searchStarCitizenWeb(focusedWebSearchQuery(message));
       const formattedResults = formatWebSearchResults(results);
